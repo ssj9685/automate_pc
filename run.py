@@ -1,7 +1,4 @@
-from gesture_recognition import gesture
-
-def main():
-    gesture.VideoCapture()
+from gesture_recognition.gesture import Gesture
 
 if __name__=='__main__':
-    main()
+    Gesture().VideoCapture()
