@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import math
+import pyautogui as pg
 
 class Gesture:
     
@@ -10,6 +11,8 @@ class Gesture:
         self.size = 200
         self.color = (0, 255, 0)
         self.thick = 1
+        self.mx = 50
+        self.my = 50
         
     def calculateAngle(self, far, start, end):
         """Cosine rule"""
@@ -122,15 +125,20 @@ class Gesture:
                 # Print number of fingers
             if count_defects == 0:
                 cv2.putText(frame, "ONE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255),2)
+                self.mx = self.mx + 1
             if count_defects == 1:
                 cv2.putText(frame, "TWO", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+                self.my = self.my + 1
             if count_defects == 2:
                 cv2.putText(frame, "THREE", (5, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+                self.mx = self.mx - 1
             if count_defects == 3:
                 cv2.putText(frame, "FOUR", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+                self.my = self.my - 1
             if count_defects == 4:
                 cv2.putText(frame, "FIVE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
-                
+            
+            pg.moveTo(self.mx, self.my)  
             cv2.imshow("video", frame)
             
             key = cv2.waitKey(1)&0xFF
