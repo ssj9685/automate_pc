@@ -137,6 +137,7 @@ class Gesture:
                 self.my = self.my - 1
             if count_defects == 4:
                 cv2.putText(frame, "FIVE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+                pg.click()
             
             pg.moveTo(self.mx, self.my)  
             cv2.imshow("video", frame)
