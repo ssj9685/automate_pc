@@ -1,90 +1,146 @@
+import numpy as np
 import cv2
-import numpy
-import matplotlib.pyplot as plt
+import math
 
 class Gesture:
-
-    def f(self,t):
-        sig=6/29
-        t[t>sig**3]=t[t>sig**3]**(1/3)
-        t[t<=sig**3]=t[t<=sig**3]/(3*sig**2)+4/29
-        
-        return t
     
-    def filt_img(self,frame):
-        frame = cv2.bilateralFilter(frame,5,100,100)
-        return frame
+    def __init__(self):
+        self.x = 100
+        self.y = 100
+        self.size = 200
+        self.color = (0, 255, 0)
+        self.thick = 1
         
-    def equal_img(self,frame):
-        '''
-        r,g,b=cv2.split(frame)
-        r=cv2.equalizeHist(r)
-        g=cv2.equalizeHist(g)
-        b=cv2.equalizeHist(b)
-        rgb=cv2.merge([r,g,b])
-        '''
-        frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)
-        frame = cv2.equalizeHist(frame)
-        return frame
+    def calculateAngle(self, far, start, end):
+        """Cosine rule"""
+        a = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
+        b = math.sqrt((far[0] - start[0])**2 + (far[1] - start[1])**2)
+        c = math.sqrt((end[0] - far[0])**2 + (end[1] - far[1])**2)
+        angle = (math.acos((b**2 + c**2 - a**2) / (2*b*c)) * 180) / 3
+        return angle
         
-    def make_hsv(self,frame):
-        frame = cv2.cvtColor(frame,cv2.COLOR_RGB2HSV)
-        return frame
-        
+    def roi(self, frame, x, y, size, color, thick):
+        cv2.rectangle(frame, (x, y), (x+size, y+size), color, thick)
     
-    def make_binary(self,frame):
-        gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        _,frame=cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
-        return frame
-
-    def bgSubMask(self,frame):
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(3,3))
-        fgmask = self.bgSubtractor.apply(frame,0)
-        fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel, iterations=1)
-        fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel, iterations=1)
-        #frame = cv2.bitwise_and(frame,frame,mask=mask)
-        return fgmask    
+    def circle(self, frame, x, y, size, color, thick):
+        cv2.circle(frame, (x, y), size, color, thick)
     
-    def VideoCapture(self):
-        #self.bgSubtractor = cv2.createBackgroundSubtractorMOG2(700,30,False)
-        cap=cv2.VideoCapture(0)
-        
-        
-        #XYZ=M*RGB reference
-        M=numpy.array([[0.4887180,0.3106803,0.2006017],
-                       [0.1762044,0.8129847,0.0108109],
-                       [0.0000000,0.0102048,0.9897952]])
+    def mouse_callback(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.x = x
+            self.y = y    
+    
+    def keyClass(self, key):
+        if key == ord('a'):
+            self.x = self.x - 20
+        if key == ord('d'):
+            self.x = self.x + 20
+        if key == ord('w'):
+            self.y = self.y - 20
+        if key == ord('s'):
+            self.y = self.y + 20
+        if key == ord('q'):
+            self.size = self.size - 20
+        if key == ord('e'):
+            self.size = self.size + 20
+            
+                
+    def main(self):
+        webcam = cv2.VideoCapture(0)
         while True:
         
-            _, frame = cap.read()
+            _,frame = webcam.read()
             frame = cv2.flip(frame,1)
-         
-            bgr = frame
-            b,g,r = cv2.split(bgr)
             
-            x=M[0][0]*r+M[0][1]*g+M[0][2]*b
-            y=M[1][0]*r+M[1][1]*g+M[1][2]*b
-            z=M[2][0]*r+M[2][1]*g+M[2][2]*b
+            crop_image = frame[self.y : self.y + self.size , self.x : self.x + self.size]
+            self.roi(frame, self.x, self.y, self.size, self.color, self.thick)
             
-            l=116*self.f(y/100)-16
-            a=500*(self.f(x/95.0489)-self.f(y/100))
-            b=200*(self.f(y/100)-self.f(z/108.8840))
+            cv2.namedWindow('video')
+            cv2.setMouseCallback('video',self.mouse_callback)
             
+            blur = cv2.GaussianBlur(crop_image, (3, 3), 0)
             
-            #this is float64 uint8? how to convert
-            #how to normalization
-            lab=cv2.merge([l,a,b])
+            imageYCrCb = cv2.cvtColor(blur, cv2.COLOR_BGR2YCR_CB)
+            min_YCrCb = np.array([0,133,77],np.uint8)
+            max_YCrCb = np.array([235,173,127],np.uint8)
+            mask = cv2.inRange(imageYCrCb, min_YCrCb, max_YCrCb)
             
+            kernel = np.ones((5, 5))
+
+            # Apply morphological transformations to filter out the background noise
+            dilation = cv2.dilate(mask, kernel, iterations=1)
+            erosion = cv2.erode(dilation, kernel, iterations=1)
+
+            # Apply Gaussian Blur and Threshold
+            filtered = cv2.GaussianBlur(erosion, (3, 3), 0)
+            ret, thresh = cv2.threshold(filtered, 127, 255, 0)
             
+            cv2.imshow("thresh", thresh)
             
-            #cv2.imshow("video0",lab)
+            contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             
-            #break when esc press down
-            if cv2.waitKey(1)&0xFF == 27:
+            # Find contour with maximum area
+            try:
+                contour = max(contours, key = lambda x: cv2.contourArea(x))
+            except:
+                pass
+            
+            x, y, w, h = cv2.boundingRect(contour)
+            cv2.rectangle(crop_image, (x, y), (x + w, y + h), (0, 0, 255), 0)
+
+
+            # Find convex hull
+            hull = cv2.convexHull(contour)
+
+            # Draw contour
+            drawing = np.zeros(crop_image.shape, np.uint8)
+                
+            cv2.drawContours(drawing, [contour], -1, (0, 255, 0), 0)
+            cv2.drawContours(drawing, [hull], -1, (0, 0, 255), 0)
+
+            # Find convexity defects
+            hull = cv2.convexHull(contour, returnPoints=False)
+            defects = cv2.convexityDefects(contour, hull)
+
+                
+            count_defects = 0
+            if(defects is not None):
+                for i in range(defects.shape[0]):
+                    s, e, f, d = defects[i, 0]
+                    start = tuple(contour[s][0])
+                    end = tuple(contour[e][0])
+                    far = tuple(contour[f][0])
+                    angle = self.calculateAngle(far, start, end)
+
+                    # if angle > 90 draw a circle at the far point
+                    if angle <= 60:
+                        count_defects += 1
+                        cv2.circle(crop_image, far, 1, [0, 0, 255], -1)
+
+                    cv2.line(crop_image, start, end, [0, 255, 0], 2)
+
+                # Print number of fingers
+            if count_defects == 0:
+                cv2.putText(frame, "ONE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255),2)
+            if count_defects == 1:
+                cv2.putText(frame, "TWO", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+            if count_defects == 2:
+                cv2.putText(frame, "THREE", (5, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+            if count_defects == 3:
+                cv2.putText(frame, "FOUR", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+            if count_defects == 4:
+                cv2.putText(frame, "FIVE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,255), 2)
+                
+            cv2.imshow("video", frame)
+            
+            key = cv2.waitKey(1)&0xFF
+            if key == 27:
                 break
                 
-        cap.release()
+            self.keyClass(key)
+
+        webcam.release()
         cv2.destroyAllWindows()
 
-if __name__=='__main__':
-    Gesture().VideoCapture()
+if __name__ == '__main__':
+    Gesture().main()
